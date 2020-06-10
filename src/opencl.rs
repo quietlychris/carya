@@ -8,7 +8,7 @@ use ocl::enums::DeviceSpecifier::*;
 use ocl::error::Error;
 use ocl::{Buffer, Device, MemFlags, Platform, ProQue, SpatialDims::*};
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct OpenCLArray {
     pub backend: CLBackEnd,
     pub v: Buffer<f32>,
@@ -334,6 +334,39 @@ impl OpenCLArray {
             .backend
             .proque
             .kernel_builder("sigmoid")
+            .arg(&self.v)
+            .arg(&b)
+            .build()?;
+
+        kern.set_default_global_work_size(One(n * m)); // This one alone works for MNIST-size sets
+
+        unsafe {
+            kern.enq()?;
+        }
+
+        result.v = b;
+
+        Ok(result)
+    }
+
+    pub fn sigmoid_prime(&self) -> Result<OpenCLArray, Error> {
+        let (n, m) = (self.rows, self.cols);
+
+        let mut result = OpenCLArray::new(self.backend.clone(), n, m)?;
+        result.backend.proque.set_dims([n, m]);
+        let v = vec![0.; n * m];
+
+        let mut b = Buffer::builder()
+            .queue(result.backend.proque.queue().clone())
+            .flags(MemFlags::new().read_write())
+            .len(One(n * m))
+            .copy_host_slice(&v)
+            .build()?;
+
+        let mut kern = self
+            .backend
+            .proque
+            .kernel_builder("sigmoid_prime")
             .arg(&self.v)
             .arg(&b)
             .build()?;

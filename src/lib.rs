@@ -14,6 +14,6 @@ use ndarray::prelude::*;
 use ocl::Error;
 
 pub mod prelude {
-    pub use crate::opencl::*;
     pub use crate::cuda::*;
+    pub use crate::opencl::*;
 }

@@ -169,3 +169,35 @@ fn array_sigmoid() -> Result<(), Error> {
     }
     Ok(())
 }
+
+fn sigmoid_prime_op(x: f32) -> f32 {
+    sigmoid_op(x) * (1.0 - sigmoid_op(x))
+}
+
+#[test]
+#[serial]
+fn array_sigmoid_prime() -> Result<(), Error> {
+    let backend = CLBackEnd::new("GeForce")?;
+    let a: Array2<f32> = Array::random((8, 10), Uniform::new(0.49, 0.51));
+    let (n, m): (usize, usize) = (a.nrows(), a.ncols());
+
+    let b = a.mapv(|x| sigmoid_prime_op(x));
+
+    let a_gpu = OpenCLArray::from_array(backend, &a)?;
+    let b_gpu = a_gpu.sigmoid_prime()?.to_array()?;
+
+    let epsilon = 1e-5;
+    for y in 0..n {
+        for x in 0..m {
+            println!(
+                "{} - {} = {} < {}",
+                b_gpu[[y, x]],
+                b[[y, x]],
+                b_gpu[[y, x]] - b[[y, x]],
+                epsilon
+            );
+            assert!((b_gpu[[y, x]] - b[[y, x]]).abs() < epsilon);
+        }
+    }
+    Ok(())
+}

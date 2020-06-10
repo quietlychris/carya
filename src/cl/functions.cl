@@ -61,6 +61,12 @@ __kernel void sigmoid(__global const float *a,
     b[i] = sigmoid_op(a[i]);
 }
 
+__kernel void sigmoid_prime(__global const float *a,
+                                __global float *b) {
+    uintptr_t i = get_global_id(0);
+    b[i] = sigmoid_op(a[i]);
+    b[i] = b[i]*(1.0 - b[i]);
+}
 
 __kernel void transpose(__global const float *a,
                                    __global float *b,
