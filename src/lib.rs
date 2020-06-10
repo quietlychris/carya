@@ -2,13 +2,18 @@
 #[macro_use]
 extern crate serial_test;
 
-mod cuda;
+pub mod cuda;
 mod test_cuda;
 mod test_opencl;
 use crate::cuda::*;
-mod opencl;
+pub mod opencl;
 use crate::opencl::*;
 
 use accel::*;
 use ndarray::prelude::*;
 use ocl::Error;
+
+pub mod prelude {
+    pub use crate::opencl::*;
+    pub use crate::cuda::*;
+}
