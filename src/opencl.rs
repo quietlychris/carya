@@ -8,6 +8,7 @@ use ocl::enums::DeviceSpecifier::*;
 use ocl::error::Error;
 use ocl::{Buffer, Device, MemFlags, Platform, ProQue, SpatialDims::*};
 
+#[derive(Debug,Clone)]
 pub struct OpenCLArray {
     pub backend: CLBackEnd,
     pub v: Buffer<f32>,
