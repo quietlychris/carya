@@ -141,56 +141,37 @@ impl OpenCLArray {
         Ok(result_ocl_array)
     }
 
-    pub fn dot(&self, b: &OpenCLArray) -> Result<OpenCLArray, Error> {
+    pub fn dot(&self, b: &OpenCLArray, c: &mut OpenCLArray) -> Result<(), Error> {
         let (n, m, k) = (self.rows, self.cols, b.cols);
 
-        let mut result = OpenCLArray::new(self.backend.clone(), n, k)?;
-        result.backend.proque.set_dims([n, k]);
-        let v = vec![0.; n * k];
-
-        let mut c = Buffer::builder()
-            .queue(result.backend.proque.queue().clone())
-            .flags(MemFlags::new().read_write())
-            .len(Two(n, k))
-            .copy_host_slice(&v)
-            .build()?;
-
+        let kern_start = Instant::now();
         let mut kern = self
             .backend
             .proque
             .kernel_builder("dot_product")
             .arg(&self.v)
             .arg(&b.v)
-            .arg(&c)
+            .arg(&c.v)
             .arg(&m)
             .arg(&k)
             .build()?;
 
         kern.set_default_global_work_size(Two(n, k)); // This one alone works for MNIST-size sets
+        println!("dot product kernel build time: {}",kern_start.elapsed().as_nanos() );
 
+        let enq_start = Instant::now();
         unsafe {
             kern.enq()?;
         }
+        println!("dot product enq  runtime: {}",kern_start.elapsed().as_nanos() );
 
-        result.v = c;
 
-        Ok(result)
+        Ok(())
     }
 
-    pub fn hadamard(&self, b: &OpenCLArray) -> Result<OpenCLArray, Error> {
+    pub fn hadamard(&self, b: &OpenCLArray, c: &mut OpenCLArray) -> Result<(), Error> {
         assert_eq!((self.rows, self.cols), (b.rows, b.cols));
         let (n, m) = (self.rows, self.cols);
-
-        let mut result = OpenCLArray::new(self.backend.clone(), n, m)?;
-        result.backend.proque.set_dims([n, m]);
-        let v = vec![0.; n * m];
-
-        let mut c = Buffer::builder()
-            .queue(result.backend.proque.queue().clone())
-            .flags(MemFlags::new().read_write())
-            .len(One(n * m))
-            .copy_host_slice(&v)
-            .build()?;
 
         let mut kern = self
             .backend
@@ -198,7 +179,7 @@ impl OpenCLArray {
             .kernel_builder("hadamard")
             .arg(&self.v)
             .arg(&b.v)
-            .arg(&c)
+            .arg(&c.v)
             .build()?;
 
         kern.set_default_global_work_size(One(n * m)); // This one alone works for MNIST-size sets
@@ -207,25 +188,12 @@ impl OpenCLArray {
             kern.enq()?;
         }
 
-        result.v = c;
-
-        Ok(result)
+        Ok(())
     }
 
-    pub fn add(&self, b: &OpenCLArray) -> Result<OpenCLArray, Error> {
+    pub fn add(&self, b: &OpenCLArray, c: &mut OpenCLArray) -> Result<(), Error> {
         assert_eq!((self.rows, self.cols), (b.rows, b.cols));
         let (n, m) = (self.rows, self.cols);
-
-        let mut result = OpenCLArray::new(self.backend.clone(), n, m)?;
-        result.backend.proque.set_dims([n, m]);
-        let v = vec![0.; n * m];
-
-        let mut c = Buffer::builder()
-            .queue(result.backend.proque.queue().clone())
-            .flags(MemFlags::new().read_write())
-            .len(One(n * m))
-            .copy_host_slice(&v)
-            .build()?;
 
         let mut kern = self
             .backend
@@ -233,7 +201,7 @@ impl OpenCLArray {
             .kernel_builder("add")
             .arg(&self.v)
             .arg(&b.v)
-            .arg(&c)
+            .arg(&c.v)
             .build()?;
 
         kern.set_default_global_work_size(One(n * m)); // This one alone works for MNIST-size sets
@@ -242,25 +210,12 @@ impl OpenCLArray {
             kern.enq()?;
         }
 
-        result.v = c;
-
-        Ok(result)
+        Ok(())
     }
 
-    pub fn subtract(&self, b: &OpenCLArray) -> Result<OpenCLArray, Error> {
+    pub fn subtract(&self, b: &OpenCLArray, c: &mut OpenCLArray) -> Result<(), Error> {
         assert_eq!((self.rows, self.cols), (b.rows, b.cols));
         let (n, m) = (self.rows, self.cols);
-
-        let mut result = OpenCLArray::new(self.backend.clone(), n, m)?;
-        result.backend.proque.set_dims([n, m]);
-        let v = vec![0.; n * m];
-
-        let mut c = Buffer::builder()
-            .queue(result.backend.proque.queue().clone())
-            .flags(MemFlags::new().read_write())
-            .len(One(n * m))
-            .copy_host_slice(&v)
-            .build()?;
 
         let mut kern = self
             .backend
@@ -268,7 +223,7 @@ impl OpenCLArray {
             .kernel_builder("subtract")
             .arg(&self.v)
             .arg(&b.v)
-            .arg(&c)
+            .arg(&c.v)
             .build()?;
 
         kern.set_default_global_work_size(One(n * m)); // This one alone works for MNIST-size sets
@@ -276,32 +231,18 @@ impl OpenCLArray {
         unsafe {
             kern.enq()?;
         }
-
-        result.v = c;
-
-        Ok(result)
+        Ok(())
     }
 
-    pub fn scalar_multiply(&self, coeff: f32) -> Result<OpenCLArray, Error> {
+    pub fn scalar_multiply(&self, coeff: f32, b: &mut OpenCLArray) -> Result<(), Error> {
         let (n, m) = (self.rows, self.cols);
-
-        let mut result = OpenCLArray::new(self.backend.clone(), n, m)?;
-        result.backend.proque.set_dims([n, m]);
-        let v = vec![0.; n * m];
-
-        let mut b = Buffer::builder()
-            .queue(result.backend.proque.queue().clone())
-            .flags(MemFlags::new().read_write())
-            .len(One(n * m))
-            .copy_host_slice(&v)
-            .build()?;
 
         let mut kern = self
             .backend
             .proque
             .kernel_builder("multiply_by_scalar")
             .arg(&self.v)
-            .arg(&b)
+            .arg(&b.v)
             .arg(&coeff)
             .build()?;
 
@@ -311,31 +252,18 @@ impl OpenCLArray {
             kern.enq()?;
         }
 
-        result.v = b;
-
-        Ok(result)
+        Ok(())
     }
 
-    pub fn sigmoid(&self) -> Result<OpenCLArray, Error> {
+    pub fn sigmoid(&self, b: &mut OpenCLArray) -> Result<(), Error> {
         let (n, m) = (self.rows, self.cols);
-
-        let mut result = OpenCLArray::new(self.backend.clone(), n, m)?;
-        result.backend.proque.set_dims([n, m]);
-        let v = vec![0.; n * m];
-
-        let mut b = Buffer::builder()
-            .queue(result.backend.proque.queue().clone())
-            .flags(MemFlags::new().read_write())
-            .len(One(n * m))
-            .copy_host_slice(&v)
-            .build()?;
 
         let mut kern = self
             .backend
             .proque
             .kernel_builder("sigmoid")
             .arg(&self.v)
-            .arg(&b)
+            .arg(&b.v)
             .build()?;
 
         kern.set_default_global_work_size(One(n * m)); // This one alone works for MNIST-size sets
@@ -344,31 +272,18 @@ impl OpenCLArray {
             kern.enq()?;
         }
 
-        result.v = b;
-
-        Ok(result)
+        Ok(())
     }
 
-    pub fn sigmoid_prime(&self) -> Result<OpenCLArray, Error> {
+    pub fn sigmoid_prime(&self, b: &mut OpenCLArray) -> Result<(), Error> {
         let (n, m) = (self.rows, self.cols);
-
-        let mut result = OpenCLArray::new(self.backend.clone(), n, m)?;
-        result.backend.proque.set_dims([n, m]);
-        let v = vec![0.; n * m];
-
-        let mut b = Buffer::builder()
-            .queue(result.backend.proque.queue().clone())
-            .flags(MemFlags::new().read_write())
-            .len(One(n * m))
-            .copy_host_slice(&v)
-            .build()?;
 
         let mut kern = self
             .backend
             .proque
             .kernel_builder("sigmoid_prime")
             .arg(&self.v)
-            .arg(&b)
+            .arg(&b.v)
             .build()?;
 
         kern.set_default_global_work_size(One(n * m)); // This one alone works for MNIST-size sets
@@ -377,9 +292,7 @@ impl OpenCLArray {
             kern.enq()?;
         }
 
-        result.v = b;
-
-        Ok(result)
+        Ok(())
     }
 }
 

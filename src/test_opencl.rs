@@ -6,7 +6,10 @@ use ndarray_rand::rand_distr::Uniform;
 #[cfg(test)]
 use ndarray_rand::RandomExt;
 
+use std::time::{Instant,Duration};
+
 use ocl::Error;
+
 
 #[test]
 #[serial]
@@ -59,18 +62,44 @@ fn array_dot() -> Result<(), Error> {
     let backend = CLBackEnd::new("GeForce")?;
     // let a = array![[1., 2., 3.], [4., 5., 6.]];
     // let b = array![[1.,1.],[1.,1.],[1.,1.]];
-    let a = Array::random((10, 3), Uniform::new(0., 1.));
-    let b = Array::random((3, 2), Uniform::new(0., 1.));
+    let (n,m,k) = (10000,784,10);
+    let a = Array::random((n, m), Uniform::new(0., 1.));
+    let b = Array::random((m, k), Uniform::new(0., 1.));
+
+    let mut c_gpu = OpenCLArray::new(backend.clone(),n,k)?;
+    
+    let mut start = Instant::now();
     let c = a.dot(&b);
+    println!("c_cpu = a.b : {} ms",start.elapsed().as_millis());
 
+    start = Instant::now();
     let a_gpu = OpenCLArray::from_array(backend.clone(), &a)?;
+    println!("a -> gpu: {} ns",start.elapsed().as_nanos());
+    start = Instant::now();
     let b_gpu = OpenCLArray::from_array(backend, &b)?;
-    let c_gpu = a_gpu.dot(&b_gpu)?.to_array()?;
+    println!("b -> gpu: {} ns",start.elapsed().as_nanos());
+    start = Instant::now();
+    let mut gpu_start = Instant::now();
+    a_gpu.dot(&b_gpu,&mut c_gpu)?;
+    println!("c_gpu = a.b : {} ms",gpu_start.elapsed().as_millis());
+    let c_gpu = c_gpu.to_array()?;
 
-    println!("c:\n{:#?}", c);
-    println!("c_gpu:\n{:#?}", c_gpu);
+    // println!("c:\n{:#?}", c);
+    // println!("c_gpu:\n{:#?}", c_gpu);
 
-    assert_eq!(c_gpu, c);
+    let epsilon = 1e-3;
+    for y in 0..n {
+        for x in 0..k {
+            println!(
+                "{} - {} = {} ?< {}",
+                c_gpu[[y, x]],
+                c[[y, x]],
+                c_gpu[[y, x]] - c[[y, x]],
+                epsilon
+            );
+            assert!((c_gpu[[y, x]] - c[[y, x]]).abs() < epsilon);
+        }
+    }
 
     Ok(())
 }
@@ -84,9 +113,11 @@ fn array_hadamard() -> Result<(), Error> {
     let b = Array::random((10, 3), Uniform::new(0., 1.));
 
     let a_gpu = OpenCLArray::from_array(backend.clone(), &a)?;
-    let b_gpu = OpenCLArray::from_array(backend, &b)?;
+    let b_gpu = OpenCLArray::from_array(backend.clone(), &b)?;
 
-    let c_gpu = a_gpu.hadamard(&b_gpu)?.to_array()?;
+    let mut c_gpu = OpenCLArray::new(backend, a_gpu.rows,a_gpu.cols)?;
+    a_gpu.hadamard(&b_gpu,&mut c_gpu)?;
+    let c_gpu = c_gpu.to_array()?;
     let c = a * b;
 
     println!("c:\n{:#?}", c);
@@ -105,9 +136,11 @@ fn array_add() -> Result<(), Error> {
     let b = Array::random((10, 3), Uniform::new(0., 1.));
 
     let a_gpu = OpenCLArray::from_array(backend.clone(), &a)?;
-    let b_gpu = OpenCLArray::from_array(backend, &b)?;
+    let b_gpu = OpenCLArray::from_array(backend.clone(), &b)?;
 
-    let c_gpu = a_gpu.add(&b_gpu)?.to_array()?;
+    let mut c_gpu = OpenCLArray::new(backend, a_gpu.rows,a_gpu.cols)?;
+    a_gpu.add(&b_gpu,&mut c_gpu)?;
+    let c_gpu = c_gpu.to_array()?;
     let c = a + b;
 
     println!("c:\n{:#?}", c);
@@ -126,9 +159,11 @@ fn array_subtract() -> Result<(), Error> {
     let b = Array::random((10, 3), Uniform::new(0., 1.));
 
     let a_gpu = OpenCLArray::from_array(backend.clone(), &a)?;
-    let b_gpu = OpenCLArray::from_array(backend, &b)?;
+    let b_gpu = OpenCLArray::from_array(backend.clone(), &b)?;
 
-    let c_gpu = a_gpu.subtract(&b_gpu)?.to_array()?;
+    let mut c_gpu = OpenCLArray::new(backend, a_gpu.rows,a_gpu.cols)?;
+    a_gpu.subtract(&b_gpu,&mut c_gpu)?;
+    let c_gpu = c_gpu.to_array()?;
     let c = a - b;
 
     println!("c:\n{:#?}", c);
@@ -151,8 +186,10 @@ fn array_sigmoid() -> Result<(), Error> {
 
     let b = a.mapv(|x| sigmoid_op(x));
 
-    let a_gpu = OpenCLArray::from_array(backend, &a)?;
-    let b_gpu = a_gpu.sigmoid()?.to_array()?;
+    let a_gpu = OpenCLArray::from_array(backend.clone(), &a)?;
+    let mut b_gpu = OpenCLArray::new(backend,a_gpu.rows,a_gpu.cols)?;
+    a_gpu.sigmoid(&mut b_gpu)?;
+    let b_gpu = b_gpu.to_array()?;
 
     let epsilon = 1e-5;
     for y in 0..n {
@@ -183,8 +220,11 @@ fn array_sigmoid_prime() -> Result<(), Error> {
 
     let b = a.mapv(|x| sigmoid_prime_op(x));
 
-    let a_gpu = OpenCLArray::from_array(backend, &a)?;
-    let b_gpu = a_gpu.sigmoid_prime()?.to_array()?;
+    let a_gpu = OpenCLArray::from_array(backend.clone(), &a)?;
+    let mut b_gpu = OpenCLArray::new(backend,a_gpu.rows,a_gpu.cols)?;
+    a_gpu.sigmoid_prime(&mut b_gpu)?;
+    let b_gpu = b_gpu.to_array()?;
+
 
     let epsilon = 1e-5;
     for y in 0..n {
