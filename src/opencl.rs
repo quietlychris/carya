@@ -144,7 +144,7 @@ impl OpenCLArray {
     pub fn dot(&self, b: &OpenCLArray, c: &mut OpenCLArray) -> Result<(), Error> {
         let (n, m, k) = (self.rows, self.cols, b.cols);
 
-        let kern_start = Instant::now();
+        // let kern_start = Instant::now();
         let mut kern = self
             .backend
             .proque
@@ -157,13 +157,13 @@ impl OpenCLArray {
             .build()?;
 
         kern.set_default_global_work_size(Two(n, k)); // This one alone works for MNIST-size sets
-        println!("dot product kernel build time: {}",kern_start.elapsed().as_nanos() );
+        // println!("dot product kernel build time: {}",kern_start.elapsed().as_nanos() );
 
-        let enq_start = Instant::now();
+        // let enq_start = Instant::now();
         unsafe {
             kern.enq()?;
         }
-        println!("dot product enq  runtime: {}",kern_start.elapsed().as_nanos() );
+        // println!("dot product enq  runtime: {}",kern_start.elapsed().as_nanos() );
 
 
         Ok(())
