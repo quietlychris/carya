@@ -141,6 +141,39 @@ impl OpenCLArray {
         Ok(result_ocl_array)
     }
 
+    pub fn t_v2(&mut self) -> Result<(), Error> {
+        let v = vec![0.; self.rows * self.cols];
+        let buffer = Buffer::builder()
+            .queue(self.backend.proque.queue().clone())
+            .flags(MemFlags::new().read_write())
+            .len(Two(self.cols, self.rows))
+            .copy_host_slice(&v)
+            .build()?;
+
+        let mut kern = self
+            .backend
+            .proque
+            .kernel_builder("transpose")
+            .arg(&self.v)
+            .arg(&buffer)
+            .arg(self.rows)
+            .arg(self.cols)
+            .build()?;
+
+        kern.set_default_global_work_size(Two(self.rows, self.cols));
+
+        unsafe {
+            kern.enq()?;
+        }
+
+        self.v = buffer;
+        let (rows,cols) = (self.rows,self.cols);
+        self.rows = cols;
+        self.cols = rows;
+
+        Ok(())
+    }
+
     pub fn dot(&self, b: &OpenCLArray, c: &mut OpenCLArray) -> Result<(), Error> {
         let (n, m, k) = (self.rows, self.cols, b.cols);
 

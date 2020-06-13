@@ -42,7 +42,7 @@ fn array_squared() -> Result<(), Error> {
 
 #[test]
 #[serial]
-fn array_tranpose() -> Result<(), Error> {
+fn array_transpose() -> Result<(), Error> {
     let backend = CLBackEnd::new("GeForce")?;
 
     let mut array = array![[1., 2., 3.], [4., 5., 6.]];
@@ -239,5 +239,41 @@ fn array_sigmoid_prime() -> Result<(), Error> {
             assert!((b_gpu[[y, x]] - b[[y, x]]).abs() < epsilon);
         }
     }
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn array_transpose_versions() -> Result<(), Error> {
+    let backend = CLBackEnd::new("GeForce")?;
+
+    let mut array = array![[1., 2., 3.], [4., 5., 6.]];
+
+    let mut a = OpenCLArray::from_array(backend, &array)?;
+    let mut start = Instant::now();
+    for _ in 0..10 {
+        let b = a.t()?;
+    }
+    println!("t_version 1 time: {}",start.elapsed().as_nanos());
+    let b = a.t()?;
+
+
+    start = Instant::now();
+    for _ in 0..10 {
+        a.t_v2()?;
+    }
+    println!("t_version 2 time: {}",start.elapsed().as_nanos());
+    a.t_v2()?;
+
+    let result = b.to_array()?;
+    let result_2 = a.clone().to_array()?;
+    println!("result:\n{:#?}", result);
+    println!("result:\n{:#?}", result_2);
+    assert_eq!(result, array.t());
+    assert_eq!(result_2, array.t());
+    a.t_v2()?;
+    let transpose_back = a.to_array()?;
+    assert_eq!(transpose_back,array);
+
     Ok(())
 }
