@@ -1,2 +1,4 @@
 /target
 Cargo.lock
+carya_accel/target
+carya_accel/Cargo.lock

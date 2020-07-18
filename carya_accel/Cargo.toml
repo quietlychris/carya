@@ -1,5 +1,5 @@
 [package]
-name = "carya"
+name = "carya_accel"
 version = "0.1.0"
 authors = ["chrism <christopher.and.moran@gmail.com>"]
 edition = "2018"
@@ -7,22 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "carya"
+name = "carya_accel"
 
 [dependencies]
-ocl = "0.19.3"
-ndarray = "0.13.1"
+accel = "0.3.1"
+ndarray = "0.13"
 
 [dev-dependencies]
 ndarray-rand = "0.11"
 serial_test = "0.4"
-
-[dependencies.carya_accel]
-path = "./carya_accel"
-optional = true
-
-[features]
-default = []
-cuda_through_accel = ["carya_accel"]
-
-
